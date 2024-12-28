@@ -1,5 +1,11 @@
 #!/bin/bash
 
+SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+BASE_DIR="$SCRIPT_DIR/.."
+LIB_DIR="$BASE_DIR/lib"
+
+source $LIB_DIR/parallel.sh
+
 shopt -s expand_aliases
 
 alias djvu2pdf='docker run --rm -u $(id -u):$(id -g) -v $(pwd):/opt/work nasab187/djvu2pdf'
@@ -32,29 +38,4 @@ convert_file() {
 
 export -f convert_file
 
-cpu_cores=$(sysctl -n hw.logicalcpu)
-
-# Check if GNU Parallel is available
-if command -v parallel > /dev/null; then
-    echo "GNU Parallel is available. Running in parallel..."
-    find . -type f -name "*.djvu" | parallel --ungroup -j $cpu_cores convert_file {}
-elif command -v xargs > /dev/null; then
-    echo "GNU Parallel not found. Falling back to xargs..."
-    find . -type f -name "*.djvu"  | xargs -P $cpu_cores -I {} bash -c 'convert_file "$0"' {}
-else
-    cat << EOF
-Neither 'GNU Parallel' nor 'xargs' were found.
-Running it unparallel might take too long. If you continue, conversion would start without parallel support.
-EOF
-
-    read -p "Are you sure? (Y/N)" -n 1 -r
-
-    if [[ $REPLY =~ ^[Yy]$ ]]; then
-        # Find all .djvu files and convert them
-        find . -type f -name "*.djvu" | while read -r djvu_file; do
-            convert_file "$djvu_file"
-        done
-    else
-        exit 0
-    fi
-fi
+find . -type f -name "*.djvu" | run_parallel convert_file
